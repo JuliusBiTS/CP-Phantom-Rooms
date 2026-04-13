@@ -201,6 +201,9 @@ const playerPos = new THREE.Vector3(0, EYE_H, 4);
 let   yaw = 0, pitch = 0;
 const keys = {};
 let   isLocked = false;
+let   velY = 0;
+const GRAVITY = -18;
+const JUMP_FORCE = 7;
 
 // ══════════ AGORA STATE ══════════
 let agoraClient = null, localAudio = null, localVideo = null, screenAudio = null;
@@ -227,7 +230,13 @@ document.addEventListener('mousemove', e => {
   pitch  = Math.max(-1.2, Math.min(1.2, pitch));
 });
 
-document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space' && isLocked && playerPos.y <= EYE_H + 0.05) {
+    velY = JUMP_FORCE;
+    e.preventDefault();
+  }
+});
 document.addEventListener('keyup',   e => { keys[e.code] = false; });
 
 // ══════════ SCENE INIT ══════════
@@ -1059,7 +1068,14 @@ function animate() {
     const hw=ROOM_W/2-0.5,hd=ROOM_D/2-0.5;
     playerPos.x=Math.max(-hw,Math.min(hw,playerPos.x));
     playerPos.z=Math.max(-hd,Math.min(hd,playerPos.z));
-    playerPos.y=EYE_H;
+
+    // gravity + jump
+    velY += GRAVITY * dt;
+    playerPos.y += velY * dt;
+    if (playerPos.y <= EYE_H) {
+      playerPos.y = EYE_H;
+      velY = 0;
+    }
   }
 
   // camera
