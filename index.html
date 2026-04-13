@@ -992,6 +992,22 @@ function wireSpatial(uid, track) {
   }
 }
 
+function wireAmbient(track) {
+  // Screen share audio: route directly to destination with no panning
+  ensureACtx();
+  try {
+    const src = audioCtx.createMediaStreamSource(new MediaStream([track.getMediaStreamTrack()]));
+    // Gain node so we can control music volume separately if needed
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.85;
+    src.connect(gain);
+    gain.connect(audioCtx.destination);
+  } catch(e) {
+    console.warn('Ambient audio fallback:', e);
+    track.play();
+  }
+}
+
 function setPannerPos(uid) {
   const u=users[uid];
   if (!u||!u.panner||!u.grp) return;
@@ -1120,6 +1136,10 @@ function onResize(){
 }
 
 // ══════════ AGORA ══════════
+
+// Buffer for position messages that arrive before user-published
+const pendingPos = {};
+
 async function initAgora(appId, room, myName, asDM) {
   agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
 
@@ -1128,9 +1148,13 @@ async function initAgora(appId, room, myName, asDM) {
     const uid=ru.uid;
     if (!users[uid]) {
       const {grp,vidMesh}=makeAvatar(uid,'User-'+uid,false);
-      const a=(Math.random()-.5)*6, b=(Math.random()-.5)*6;
-      grp.position.set(a,0,b);
-      users[uid]={name:'User-'+uid,grp,vidMesh,targetX:a,targetZ:b,targetYaw:0};
+      // Use buffered position if we got pos before user-published
+      const px = pendingPos[uid]?.x ?? (Math.random()-.5)*6;
+      const pz = pendingPos[uid]?.z ?? (Math.random()-.5)*6;
+      const pyaw = pendingPos[uid]?.yaw ?? 0;
+      grp.position.set(px,0,pz);
+      users[uid]={name:'User-'+uid,grp,vidMesh,targetX:px,targetZ:pz,targetYaw:pyaw};
+      delete pendingPos[uid];
     }
     if (mediaType==='video') {
       users[uid].videoTrack=ru.videoTrack;
@@ -1143,8 +1167,17 @@ async function initAgora(appId, room, myName, asDM) {
       } catch(e){}
     }
     if (mediaType==='audio') {
-      users[uid].audioTrack=ru.audioTrack;
-      wireSpatial(uid,ru.audioTrack);
+      ensureACtx();
+      if (!users[uid].hasAudio) {
+        // First audio track = microphone → spatial
+        users[uid].audioTrack = ru.audioTrack;
+        users[uid].hasAudio = true;
+        wireSpatial(uid, ru.audioTrack);
+      } else {
+        // Second audio track = screen share audio → ambient (no position)
+        users[uid].screenAudioTrack = ru.audioTrack;
+        wireAmbient(ru.audioTrack);
+      }
     }
   });
 
@@ -1156,12 +1189,23 @@ async function initAgora(appId, room, myName, asDM) {
   agoraClient.on('user-left',ru=>{
     if(users[ru.uid]?.grp) scene.remove(users[ru.uid].grp);
     delete users[ru.uid];
+    delete pendingPos[ru.uid];
   });
 
   agoraClient.on('stream-message',(uid,data)=>{
     try {
       const msg=JSON.parse(new TextDecoder().decode(data));
-      if(msg.type==='pos'&&users[uid]){users[uid].targetX=msg.x;users[uid].targetZ=msg.z;users[uid].targetYaw=msg.yaw;}
+      if(msg.type==='pos'){
+        if(users[uid]){
+          // User exists — update directly
+          users[uid].targetX=msg.x;
+          users[uid].targetZ=msg.z;
+          users[uid].targetYaw=msg.yaw;
+        } else {
+          // User not yet created — buffer it
+          pendingPos[uid]={x:msg.x,z:msg.z,yaw:msg.yaw};
+        }
+      }
       if(msg.type==='name'&&users[uid]){
         users[uid].name=msg.name;
         const lbl=users[uid].grp?.children.find(c=>c.userData.bill&&c.geometry?.parameters?.width>1);
@@ -1172,16 +1216,26 @@ async function initAgora(appId, room, myName, asDM) {
 
   localUID=Math.floor(Math.random()*900000)+10000;
   await agoraClient.join(appId,room,null,localUID);
-  try{dataStreamId=await agoraClient.createDataStream({ordered:true,reliable:true});}catch(e){}
+
+  // Create data stream with retry
+  for (let attempt=0; attempt<3; attempt++) {
+    try {
+      dataStreamId=await agoraClient.createDataStream({ordered:false,reliable:false});
+      break;
+    } catch(e) {
+      if(attempt===2) console.warn('DataStream failed after 3 attempts:', e);
+      await new Promise(r=>setTimeout(r,300));
+    }
+  }
 
   [localAudio,localVideo]=await AgoraRTC.createMicrophoneAndCameraTracks(
     {AEC:true,ANS:true,AGC:true},{encoderConfig:'480p_1',facingMode:'user'});
   await agoraClient.publish([localAudio,localVideo]);
 
-  // local avatar (others see it; hidden from own FPS view)
+  // local avatar
   const {grp,vidMesh}=makeAvatar(localUID,myName+(asDM?' [GM]':''),asDM);
   grp.position.set(playerPos.x,0,playerPos.z);
-  grp.visible = false; // hide from own camera — others receive it via position broadcast
+  grp.visible=false;
   users[localUID]={name:myName,grp,vidMesh,isLocal:true,isDM:asDM};
 
   try {
@@ -1193,7 +1247,8 @@ async function initAgora(appId, room, myName, asDM) {
   }catch(e){}
 
   sendName(myName,asDM);
-  setInterval(broadcastPos,POS_MS);
+  // Broadcast position frequently — use 50ms for smooth movement
+  setInterval(broadcastPos, 50);
 }
 
 function broadcastPos(){
