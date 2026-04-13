@@ -491,17 +491,15 @@ function buildWindows(hw,hd) {
 }
 
 function buildCorpoScreens(hw,hd) {
-  // Large ad screen on NORTH WALL above bar (z = -hd)
-  addScreen(0, 3.3, -hd+0.08, 0, 0, 4.5, 1.6,
+  // North wall — Arasaka ad above bar
+  addScreen(0, 3.3, -hd+0.08, 0, 4.5, 1.6,
     (ctx,w,h)=>{
       ctx.fillStyle='#000408'; ctx.fillRect(0,0,w,h);
-      // Arasaka logo area
       ctx.fillStyle='#ff1100'; ctx.font='bold 52px Orbitron,monospace';
       ctx.textAlign='center'; ctx.fillText('ARASAKA',w/2,70);
       ctx.fillStyle='#ff00aa'; ctx.font='26px Share Tech Mono,monospace';
       ctx.fillText('CORPO BODY LEASING',w/2,110);
-      ctx.fillStyle='rgba(255,17,0,0.15)';
-      ctx.fillRect(0,130,w,2);
+      ctx.fillStyle='rgba(255,17,0,0.15)'; ctx.fillRect(0,130,w,2);
       ctx.fillStyle='rgba(0,255,255,0.6)'; ctx.font='18px Share Tech Mono,monospace';
       ctx.fillText('▶ REGISTER NOW // SLOTS AVAILABLE',w/2,160);
       ctx.fillStyle='rgba(255,17,0,0.08)'; ctx.fillRect(0,180,w,h-180);
@@ -509,8 +507,8 @@ function buildCorpoScreens(hw,hd) {
       ctx.fillText('24/7 MONITORING  //  FULL INSURANCE*  //  NO QUESTIONS ASKED',w/2,h-20);
     });
 
-  // Data cascade panel on west wall
-  addScreen(0, 2.3, -hw+0.06, 0, Math.PI/2, 3.0, 2.2,
+  // West wall — data cascade panel (x = -hw, facing east)
+  addScreen(-hw+0.08, 2.3, 0, Math.PI/2, 3.0, 2.2,
     (ctx,w,h)=>{
       ctx.fillStyle='#000208'; ctx.fillRect(0,0,w,h);
       ctx.fillStyle='rgba(0,255,65,0.7)'; ctx.font='11px Share Tech Mono,monospace';
@@ -526,9 +524,9 @@ function buildCorpoScreens(hw,hd) {
       ctx.fillText('⚠ UNAUTHORIZED ACCESS DETECTED',w/2,h-20);
     });
 
-  // Smaller screens on east wall corners
-  [[-8,2.0],[2,2.0]].forEach(([z,y])=>{
-    addScreen(y, y, hw-0.06, 0, -Math.PI/2, 2.0, 1.4,
+  // East wall — two Millitech screens (x = +hw, facing west)
+  [[-7, 2.0],[3, 2.0]].forEach(([z,y])=>{
+    addScreen(hw-0.08, y, z, -Math.PI/2, 2.0, 1.4,
       (ctx,w,h)=>{
         ctx.fillStyle='#050008'; ctx.fillRect(0,0,w,h);
         ctx.fillStyle='rgba(255,0,170,0.8)'; ctx.font='bold 22px Orbitron,monospace';
@@ -543,30 +541,31 @@ function buildCorpoScreens(hw,hd) {
   });
 }
 
-function addScreen(ignore1, y, z, rx, ry, sw, sh, drawFn) {
-  // ignore1 is leftover param — use z as the wall Z, ry as rotation
+// addScreen(x, y, z, rotY, screenW, screenH, drawFn)
+// x,y,z = world centre of screen; rotY = which way it faces
+function addScreen(x, y, z, ry, sw, sh, drawFn) {
   const c=document.createElement('canvas');
   c.width=Math.round(sw*100); c.height=Math.round(sh*100);
-  const ctx=c.getContext('2d');
-  drawFn(ctx,c.width,c.height);
+  drawFn(c.getContext('2d'), c.width, c.height);
 
-  // screen frame
+  // Frame
   const frame=new THREE.Mesh(
     new THREE.BoxGeometry(sw+0.18, sh+0.18, 0.08),
     mat(0x060609,0,0,0.3,0.9));
-  frame.position.set(0,y,z); frame.rotation.y=ry; scene.add(frame);
+  frame.position.set(x,y,z); frame.rotation.y=ry; scene.add(frame);
 
-  // neon border
-  [[0,(sh+0.19)/2],[0,-(sh+0.19)/2]].forEach(([dx,dy])=>{
+  // Red neon top/bottom edges
+  [[sh/2+0.1],[-(sh/2+0.1)]].forEach(([dy])=>{
     const e=new THREE.Mesh(new THREE.BoxGeometry(sw+0.2,0.04,0.1),mat(0xff1100,0xff1100,2.5));
-    e.position.set(dx,y+dy,z); e.rotation.y=ry; scene.add(e);
+    e.position.set(x,y+dy,z); e.rotation.y=ry; scene.add(e);
   });
 
-  // screen surface
+  // Screen surface — offset slightly in front of frame based on wall orientation
+  const offset = new THREE.Vector3(0,0,0.06).applyEuler(new THREE.Euler(0,ry,0));
   const screen=new THREE.Mesh(
     new THREE.PlaneGeometry(sw,sh),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide}));
-  screen.position.set(0,y,z+(ry===0?0.05:0));
+  screen.position.set(x+offset.x, y, z+offset.z);
   screen.rotation.y=ry; scene.add(screen);
 }
 
@@ -625,7 +624,7 @@ function buildFurniture() {
   couch(-5.5,8);
 
   // ── VENDING MACHINE ──
-  vendingMachine(-11, 9);
+  vendingMachine(-12, 7);
 
   // ── COLUMNS ──
   [[-9,-9],[9,-9],[-9,9],[9,9]].forEach(([x,z])=>column(x,z));
