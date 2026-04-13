@@ -264,7 +264,7 @@ function initScene() {
   const rl1 = new THREE.PointLight(0xff1100, 3.5, 14); rl1.position.set(-10,3.5,-10); scene.add(rl1);
   const rl2 = new THREE.PointLight(0xff1100, 3.5, 14); rl2.position.set( 10,3.5, 10); scene.add(rl2);
   const tl  = new THREE.PointLight(0x3366ff, 5,   10); tl.position.set(0,3.2,0);   tl.castShadow=true; scene.add(tl);
-  const bl  = new THREE.PointLight(0xff5500, 4,   12); bl.position.set(0,2.8,-11); scene.add(bl);
+  const bl  = new THREE.PointLight(0xff5500, 2.5, 7);  bl.position.set(0,2.8,-11); scene.add(bl);
   const fl1 = new THREE.PointLight(0x00ffaa, 2,   14); fl1.position.set(-10,2, 8); scene.add(fl1);
   const fl2 = new THREE.PointLight(0xff0044, 2,   14); fl2.position.set( 10,2,-8); scene.add(fl2);
 
@@ -624,7 +624,7 @@ function buildFurniture() {
   couch(-5.5,8);
 
   // ── VENDING MACHINE ──
-  vendingMachine(-12, 7);
+  vendingMachine(-13.3, 7);
 
   // ── COLUMNS ──
   [[-9,-9],[9,-9],[-9,9],[9,9]].forEach(([x,z])=>column(x,z));
@@ -806,16 +806,18 @@ function couch(x,z) {
 }
 
 function vendingMachine(x,z) {
-  const body=new THREE.Mesh(new THREE.BoxGeometry(1.0,2.0,0.7),
+  // Body — flush against west wall, screen faces east (+x)
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.7,2.0,1.0),
     mat(0x050510,0,0,0.2,0.9));
   body.position.set(x,1.0,z); scene.add(body);
 
-  // screen panel
+  // Screen panel (faces +x / east)
   const screen=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.9),
     mat(0x000818,0x001122,0.5));
-  screen.position.set(x,1.3,z+0.36); scene.add(screen);
+  screen.rotation.y=Math.PI/2;
+  screen.position.set(x+0.36, 1.3, z); scene.add(screen);
 
-  // screen content
+  // Screen content canvas
   const vc=document.createElement('canvas'); vc.width=140; vc.height=180;
   const vctx=vc.getContext('2d');
   vctx.fillStyle='#000c18'; vctx.fillRect(0,0,140,180);
@@ -827,19 +829,19 @@ function vendingMachine(x,z) {
   });
   vctx.fillStyle='rgba(255,17,0,0.5)'; vctx.font='9px Share Tech Mono,monospace';
   vctx.fillText('[INSERT CREDIT]',70,168);
-  const vsm=new THREE.Mesh(
-    new THREE.PlaneGeometry(0.7,0.9),
+  const vsm=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.9),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(vc),transparent:true}));
-  vsm.position.set(x,1.3,z+0.361); scene.add(vsm);
+  vsm.rotation.y=Math.PI/2;
+  vsm.position.set(x+0.361, 1.3, z); scene.add(vsm);
 
-  // neon border
-  [[0,2.01,0],[0,-0.01,0]].forEach(([dx,dy,dz])=>{
-    const e=new THREE.Mesh(new THREE.BoxGeometry(1.02,0.04,0.72),mat(0xff1100,0xff1100,2.5));
-    e.position.set(x+dx,dy,z); scene.add(e);
+  // Neon borders (top/bottom, world Y positions correct relative to body at y=1.0)
+  [[x,2.02,z],[x,0.0,z]].forEach(([ex,ey,ez])=>{
+    const e=new THREE.Mesh(new THREE.BoxGeometry(0.72,0.04,1.02),mat(0xff1100,0xff1100,2.5));
+    e.position.set(ex,ey,ez); scene.add(e);
   });
-  // side strip
+  // Side cyan strip (east face edge)
   const ss=new THREE.Mesh(new THREE.BoxGeometry(0.04,2.0,0.04),mat(0x00ffff,0x00ffff,2));
-  ss.position.set(x+0.52,1.0,z); scene.add(ss);
+  ss.position.set(x+0.37, 1.0, z+0.52); scene.add(ss);
 }
 
 function column(x,z) {
