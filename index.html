@@ -1003,13 +1003,25 @@ function setPannerPos(uid) {
 
 function updateListener() {
   if (!audioCtx) return;
-  const l=audioCtx.listener, t=audioCtx.currentTime;
-  l.positionX.setValueAtTime(playerPos.x,t);
-  l.positionY.setValueAtTime(playerPos.y,t);
-  l.positionZ.setValueAtTime(playerPos.z,t);
-  const fw=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
-  l.forwardX.setValueAtTime(fw.x,t); l.forwardY.setValueAtTime(fw.y,t); l.forwardZ.setValueAtTime(fw.z,t);
-  l.upX.setValueAtTime(0,t); l.upY.setValueAtTime(1,t); l.upZ.setValueAtTime(0,t);
+  const l = audioCtx.listener, t = audioCtx.currentTime;
+  const fw = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
+
+  // Modern API (Chrome/Edge)
+  if (l.positionX) {
+    l.positionX.setValueAtTime(playerPos.x, t);
+    l.positionY.setValueAtTime(playerPos.y, t);
+    l.positionZ.setValueAtTime(playerPos.z, t);
+    l.forwardX.setValueAtTime(fw.x, t);
+    l.forwardY.setValueAtTime(fw.y, t);
+    l.forwardZ.setValueAtTime(fw.z, t);
+    l.upX.setValueAtTime(0, t);
+    l.upY.setValueAtTime(1, t);
+    l.upZ.setValueAtTime(0, t);
+  } else {
+    // Legacy API fallback (Safari, older Firefox)
+    l.setPosition(playerPos.x, playerPos.y, playerPos.z);
+    l.setOrientation(fw.x, fw.y, fw.z, 0, 1, 0);
+  }
 }
 
 // ══════════ ANIMATION LOOP ══════════
